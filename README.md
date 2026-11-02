@@ -152,7 +152,7 @@ An agent working on one task leaves you idle for minutes at a time. The backlog 
 
 **Plan for collisions before you start.** Three tasks that each add a route will collide in the routing file. Two tasks that each add a migration will collide on the migration number. Two agents on one machine will collide on ports and on the dev database. Decide the merge order up front, run the shared-resource tasks in sequence, and renumber migrations rather than writing merge migrations.
 
-**Read every result before merging it.** Each diff gets read. Each result gets checked in the browser or by its tests, independently of the others. If you cannot say what a particular agent changed, it does not merge.
+**Read every result before merging it.** Each diff gets read. Each result gets checked in the browser or by its tests, independently of the others, and each agent hands back a screenshot of its result so you can check several in the time it takes to click through one. If you cannot say what a particular agent changed, it does not merge.
 
 **One base at a time.** When the same fix has to land on two bases, an integration branch and `main` for example, finish one first. Get that pull request green on CI and every bot with every thread resolved, then port the final diff. Opening both together means every review round is done twice.
 
@@ -175,6 +175,17 @@ Green CI is the definition of quality.
 - **Check for leftovers.** After an interrupted or timed-out run, look for orphaned test or compiler processes.
 - **Trivy exit code zero** before a pull request in any repo that scans. If it fails, do not open the pull request.
 - **Documentation goes to its home.** Living behaviour is a specification. A choice is a thin decision record, under eighty lines, with no implementation steps in it. An unknown is a spike document. A build sequence is an editor plan and is not committed to the docs folder.
+
+### Show it working
+
+Green tests say the code does what the test says. They do not say the feature works for a person. For anything a user can see, the proof is the running product.
+
+- **Screenshots per task.** When several agents are running, each one ends its task with a screenshot of the result in the real local UI. That is how you check five results in the time it would take to click through one, and it is how you catch the agent that reported done on something that renders blank.
+- **A video on the pull request.** A UI change gets a short recording of the real local app doing the thing, attached to the pull request description. Reviewers watch it before they read the diff. It is attached, not committed.
+- **Agents take the screenshot, not you.** The agent has a browser. Ask for the screenshot as part of the task, and read it as part of reading the result.
+- **No mock-ups as evidence.** A screenshot of a storybook, a design file or a hand-edited DOM is not proof. The product, running, with real seed data.
+
+A pull request that says "tested locally" with nothing attached has not been tested locally as far as the reviewer can tell.
 
 ## The review stack
 
