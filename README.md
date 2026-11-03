@@ -1,23 +1,21 @@
-# Agentic engineering at PlannerPal
+# How we use AI coding agents at PlannerPal
 
-How we build software with AI coding agents.
+A guide for engineers working with us, and for anyone thinking about it.
 
-PlannerPal turns an adviser's meeting into notes, documents and CRM updates, in a regulated industry, for real customers, with a small team. Agents write most of our code. The bar is the same whoever wrote it.
+PlannerPal turns an adviser's meeting into notes, documents and CRM updates, in a regulated industry, for real customers, with a small team. Agents write most of our code. The bar is the same whoever wrote it. This document says how we want you to use them.
 
-This document is for our engineers, for people thinking about joining, and for anyone who wants to see how a small team runs agents without lowering its standards. It describes what we do today, drawn from our repos' rules and skills, our pull request threads, our call transcripts and our Slack. Where a practice is aspirational, or where we fall short of it, we say so. There is a section for that at the end.
-
-The tooling we name is what we use now: Cursor, Claude Code, Codex, Bugbot, CodeRabbit, Aikido, Trivy, GitHub Actions, Jenkins. None of the practices depend on a particular tool.
+The tooling we name is what we use now: Cursor, Claude Code, Codex, Bugbot, CodeRabbit, Aikido, Trivy, GitHub Actions. None of the practices depend on a particular tool.
 
 ## Contents
 
+- [The short version](#the-short-version)
 - [Principles](#principles)
-- [The loop](#the-loop)
+- [A task, start to finish](#a-task-start-to-finish)
 - [Before you write code](#before-you-write-code)
 - [Test-driven development with an agent](#test-driven-development-with-an-agent)
 - [Several pieces of work at once](#several-pieces-of-work-at-once)
 - [Definition of done](#definition-of-done)
 - [The review stack](#the-review-stack)
-- [Releases](#releases)
 - [Security and data boundaries](#security-and-data-boundaries)
 - [Git and pull requests](#git-and-pull-requests)
 - [How agents are steered](#how-agents-are-steered)
@@ -28,6 +26,21 @@ The tooling we name is what we use now: Cursor, Claude Code, Codex, Bugbot, Code
 - [Anti-patterns](#anti-patterns)
 - [Where we are not yet](#where-we-are-not-yet)
 - [Reading](#reading)
+
+## The short version
+
+If you read nothing else, this is what we want from you.
+
+1. **Use the agent to work out what to ask, then ask.** Do not hand-write a spec. Have the agent interview you about the plan, one question at a time, and have it explore the code instead of asking you things the code can answer.
+2. **Size the work before you start it and say what you will ship.** Half a day is the target slice. Call out hidden scope in writing before the first prompt.
+3. **Run several pieces of work at once.** One agent, one branch, one pull request per task, each in its own worktree or clone. Fill the agent's runtime with the next task, not with watching it.
+4. **Test first.** A failing test, then the smallest code that passes it, one test at a time. Never a test that stubs the thing it claims to test. Never a test that pins the bug to go green.
+5. **Prove it with evidence, not by reading every line.** A reproduction on `main` and on the branch, a screenshot from each agent, a video on the pull request, the tests you added found by name in the CI log. If you cannot explain what a change does and why, it is not ready.
+6. **Run the review stack before you open the pull request,** and wait for the hosted bots after you push. Tools, then Bugbot, then a security review, then blast radius. Answer every finding: fixed, false positive with proof, pre-existing with a ticket, or declined with a reason.
+7. **Keep the agent out of production, customer data and shared git history.** It never merges, never force-pushes, never deletes a tag, never reads a production secret. You press those buttons.
+8. **Stop an agent that does something unfit.** Personal data in a payload, a bypassed contract, a delete to tidy up, a CORS or port change to make local work, scope creep. Your judgement is the control.
+9. **Small diffs that match the repo.** No drive-bys. A problem you notice gets a ticket, not a fix in this pull request.
+10. **When the agent gets something wrong, fix the rule, not the chat.** A lesson the next agent must follow goes in a skill, a rule or `AGENTS.md`. Run the retro.
 
 ## Principles
 
@@ -41,9 +54,9 @@ The tooling we name is what we use now: Cursor, Claude Code, Codex, Bugbot, Code
 8. **Production, customer data and production credentials are off limits to agents.** Fixtures, fakes, seed data and read-only restores instead.
 9. **Small diffs, one task per branch, one pull request per task.** Match the patterns already in the repo. Do not refactor quirks you were not asked to touch. Call out hidden scope before you start.
 
-## The loop
+## A task, start to finish
 
-Every change goes round this loop. The release step is the one most teams leave out and the one that has done most for us.
+This is the shape of one piece of work. Several of these run alongside each other on a normal day.
 
 ```mermaid
 flowchart LR
@@ -52,27 +65,32 @@ flowchart LR
     C --> D[Green]
     D --> E[Refactor]
     E --> F[Preflight]
-    F --> G[Review stack]
-    G --> H[Pull request]
-    H --> I[Release]
+    F --> G[Evidence]
+    G --> H[Review stack]
+    H --> I[Pull request]
     I --> J[Retro]
     J -. updates skills and rules .-> B
 ```
 
-| Step | What happens | Who decides |
-|------|--------------|-------------|
-| Triage | Rule feature flags in or out. Find every caller of anything shared you are about to change. Call out hidden scope. | Engineer, with agent |
-| Plan | Agree what is being built and what is not. One question at a time. Size it. Explore the code rather than ask. | Engineer and agent, then human sign-off |
-| Red | Write or change one test so it fails for the right reason. | Agent writes, human approves the test |
-| Green | Smallest code that passes. No speculation. | Agent |
-| Refactor | Clean up with the test green. Never while red. | Agent, engineer checks |
-| Preflight | Lint, type-check, tests for every stack touched. Confirm the tests you wrote actually run in CI. | Agent runs, engineer reads |
-| Review stack | Tools, then Bugbot, then a security review, then blast radius. Then wait for the hosted bots on the pushed head. | Agent orchestrates, engineer owns |
-| Pull request | Small, one task, evidence attached. Threads answered. | Engineer |
-| Release | Agent review of the whole `main` to `production` diff, smoke test on staging, severity triage of anything the bots raise. | Release pair |
-| Retro | What went well, what went wrong, which rule, skill, script or check to change. | Engineer picks, agent applies |
+| Step | What you do | What the agent does |
+|------|-------------|---------------------|
+| Triage | Read the ticket. Call out hidden scope. Decide spike or TDD. | Rules feature flags in or out. Finds every caller of anything shared. |
+| Plan | Answer its questions. Size it. Say what will ship. Approve the plan. | Interviews you one question at a time. Explores the code rather than asking. |
+| Set up | Give it a worktree, a branch, the files it owns, `AGENTS.md` first. | Reads `AGENTS.md`. Touches nothing outside its files. |
+| Red | Approve the test. | Writes or changes one test so it fails for the right reason. Stops. |
+| Green | Move to the next task while it works. | Smallest code that passes. No speculation. |
+| Refactor | Read the diff for what matters: data boundary, auth, contracts, anything you did not ask for. | Cleans up with the test green. Never while red. |
+| Preflight | Find your new test by name in the CI log. | Lint, type-check, tests for every stack touched. Smallest target first, sequentially. |
+| Evidence | Watch it. | Reproduces on `main` and on the branch. Screenshot of the real UI. Video for the pull request. |
+| Review stack | Own the result. | Tools, Bugbot, security review, blast radius. Then pushes and waits for the hosted bots. |
+| Pull request | Answer the findings. Message the reviewer. | Nothing. You open it, or tell it to. |
+| Retro | Pick the rows to apply. | Proposes edits to skills, rules and docs. |
 
 ## Before you write code
+
+### Call out scope
+
+A ticket that says "just a small piece of work" and turns out to contain a new auth flow and a backend feature that does not exist is the most expensive thing we deal with. Before starting, read what is actually being asked. If the scope is bigger than the ticket, say so, in writing, before any code. A design generated by an agent is not a ticket; the ticket has to say what the system does. Large tickets become projects with one ticket per deliverable, so anyone can see what has and has not landed.
 
 ### Rule the flags in or out
 
@@ -80,13 +98,9 @@ When something "doesn't work" or a screen is missing, the first ten minutes go o
 
 ### Find every caller
 
-Before changing a method that other screens or services already call, search every repo in the workspace, not just the file you are editing. Report the callers. If the default contract stays what callers get today, carry on. If any existing caller would see a different result, status or side effect, stop and ask. When the response shape changes, the paired pull request in the calling repo is opened alongside and they deploy together.
+Before changing a method that other screens or services already call, search every repo in the workspace, not just the file you are editing. Report the callers. If the default contract stays what callers get today, carry on. If any existing caller would see a different result, status or side effect, stop and ask. When the response shape changes, the paired pull request in the calling repo is opened alongside and they go out together.
 
 Auth, feature flags, API contracts and shared state carry a must-read gate before anything is changed. Cross-service paths get the same treatment: a write that bypasses the hooks in the owning service is a bug in whichever repo made it, and the fix belongs in the owning repo.
-
-### Call out scope
-
-A ticket that says "just a small piece of work" and turns out to contain a new auth flow and a backend feature that does not exist is the most expensive thing we deal with. Before starting, read what is actually being asked. If the scope is bigger than the ticket, say so, in writing, before any code. A design generated by an agent is not a ticket; the ticket has to say what the system does. Large tickets become projects with one ticket per deliverable, so anyone can see what has and has not landed.
 
 ### Grill the plan
 
@@ -133,18 +147,15 @@ When changing behaviour, change an existing test so it fails. Add a new test onl
 
 ### What counts as a test
 
-A test earns its place if it would fail when the code is wrong. We check five things:
+A test earns its place if it would fail when the code is wrong. We check for:
 
 1. **It tests behaviour through a public interface,** not implementation detail.
 2. **It mocks only at system boundaries:** network, clock, storage, third-party APIs. Never your own classes or modules, and never the thing the test claims to verify. That is a tautology, not a test.
 3. **It would fail under mutation.** If you flip the condition, does it go red? For a bug fix: with the guard removed, does the test fail?
 4. **It is readable by a human and an agent.** `// Arrange`, `// Act`, `// Assert` comments make a test scannable for both.
 5. **It does not test the framework.** No tests that a component mounts, that a schema introspects, that a class list is present, or that an ORM default applies.
-
-Two more that come from review threads:
-
-- **It does not lock in the wrong behaviour.** A test that pins what the code does today, when what it does today is the bug, is rejected. So is a guard added to make a bot happy when a stronger invariant already exists in the same file.
-- **It actually runs in CI.** We have had green checks on specs that were never executed because a test glob was unquoted and the shell expanded it one level deep. When you add a test, confirm the CI job ran it, by name.
+6. **It does not lock in the wrong behaviour.** A test that pins what the code does today, when what it does today is the bug, is rejected. So is a guard added to make a bot happy when a stronger invariant already exists in the same file.
+7. **It actually runs in CI.** We have had green checks on specs that were never executed because a test glob was unquoted and the shell expanded it one level deep. When you add a test, confirm the CI job ran it, by name.
 
 Backend query behaviour is tested against an in-memory or containerised database. A unit test that stubs the collection or the query builder checks only the shape of the query, not whether it returns the right rows. Trust-boundary tests use attacker fixtures: an attacker-owned group, a victim target, and an assertion that the victim's rows are unchanged.
 
@@ -152,7 +163,7 @@ End-to-end tests behave like a human, in a browser. "End to end" means browser; 
 
 ### Coverage
 
-We measure line coverage per repo and track it over time. Floors are set per branch in CI so a pull request cannot lower them. We do not gate releases on a percentage yet; the numbers range from the thirties to the seventies across repos and we need them stable first. Pull requests do not collect coverage, the integration branch does. A review flags deleted coverage and spy-only tests.
+We measure line coverage per repo and track it over time. Floors are set per branch in CI so a pull request cannot lower them. Coverage is not a gate yet; the numbers range from the thirties to the seventies across repos and we need them stable first. A review flags deleted coverage and spy-only tests.
 
 ## Several pieces of work at once
 
@@ -220,7 +231,7 @@ Green tests say the code does what the test says. They do not say the feature wo
 - **Reproduce before you fix.** A bug-fix pull request shows the bug happening on `main` and not happening on the branch: the same steps, two outcomes, screenshots or a recording of each. If four pull requests share one fix, one of them carries the evidence and the others point at it.
 - **Screenshots per task.** When several agents are running, each one ends its task with a screenshot of the result in the real local UI. That is how you check five results in the time it would take to click through one, and how you catch the agent that reported done on something that renders blank.
 - **A video on the pull request.** Any change with visible behaviour gets a short recording of the real local app doing the thing, attached to the pull request description. Reviewers watch it before they read the diff, and will not start without it. It is attached, not committed. Backend-only changes record the test run or the API responses on synthetic data instead.
-- **A second video from staging, on the ticket.** Once the change is deployed to staging, the engineer records it working there and attaches that to the ticket. Until that exists the ticket is still in development.
+- **A second recording once it is deployed, on the ticket.** When the change is running in a shared environment, record it working there and attach that to the ticket. Until that exists the ticket is still in development.
 - **Root cause and fix, written on the ticket.** One paragraph each, in plain language, so the person retesting knows what to retest.
 - **Say what you verified and what you only read.** "This is from reading the code; nothing was run against a live system" is a legitimate finding. Presenting it as a tested one is not.
 - **Agents take the screenshot, not you.** The agent has a browser. Ask for the screenshot as part of the task, and read it as part of reading the result.
@@ -275,35 +286,9 @@ The cost of this is reconciliation. Three reviewers disagree, and the engineer s
 
 ### On the pull request
 
-CI, Bugbot, CodeRabbit and Aikido run on every pull request. A merge needs every required check green and every conversation resolved. Human approval is set per branch; see Git and pull requests. Paths that carry cross-tenant risk have code owners, so a human who knows the risk reviews them. A substantive push after approval dismisses the approval and needs a fresh one.
+CI, Bugbot, CodeRabbit and Aikido run on every pull request. A merge needs every required check green and every conversation resolved. Paths that carry cross-tenant risk have code owners, so a human who knows the risk reviews them. A substantive push after approval dismisses the approval and needs a fresh one.
 
 A review comment on GitHub or the ticket is followed by a message in Slack. We assume nobody sees the comment otherwise.
-
-## Releases
-
-Release is where most of our quality problems used to show up, and where the single most effective change we made sits.
-
-### The agent reads the whole release
-
-Before July, releases regularly introduced bugs. In July we made one step mandatory: before a release goes out, an agent reviews the full diff between `main` and `production` for every service in the release. Not the individual pull requests, which had each been reviewed, but the combined change that is about to ship. Release-introduced bugs stopped. It is the strongest quality claim we have, and the cheapest step in the process.
-
-### Shape
-
-- **A release is a set of service versions tested together.** Five services share contracts that are not strict enough to test each in isolation. One `main` to `production` pull request per repo, listed together in one release post.
-- **Cut from a known-good commit,** not blindly from head. Work in progress ships dark behind a flag. If a blocker is found on the release branch, fix it on `main` and cherry-pick.
-- **Smoke test on staging** before the release, and the result goes in the release post with the ticket list and anything reverted.
-- **A release pair,** rotating, owns the day. Daily releases are the goal. When a release does not go out, the reason is written in the release log. The point of attempting daily is to find out what stops us.
-- **Hotfixes mirror into `main`.** A fix that goes straight to production gets an identical pull request into `main` the same day, opened by the agent, so the branches do not drift.
-- **Release playbook** in one place, with the definition of done, the code review guidelines and the per-release record.
-
-### Bot findings at release
-
-The bots run on the release pull requests too, and they find things. The rule since October:
-
-- **Low and medium** do not block the release. The findings are captured and the original pull request author picks them up as follow-on work.
-- **High** blocks the release until the original author fixes it, or the change is reverted. Either way the original author owns the fix, and it goes into `main`.
-
-The reason this rule exists is a release in October where every service's release pull request came back flagged, fix branches were opened by people who had not written the code, and someone asked whether anyone understood the diffs or whether we were using AI code to fix AI comments. That is the anti-pattern. The author owns the fix because the author has the context.
 
 ## Security and data boundaries
 
@@ -315,7 +300,7 @@ Non-production is different. Local environment values live in a role-scoped secr
 
 ### Production
 
-No production credentials, databases or APIs without explicit approval of the exact action. Investigation tooling reads from a restore, read-only, through a gate that redacts. Production logs are read through read-only access and that has paid for itself: an agent reading a log stream found a nightly job that had failed silently for six months. Risky tests on staging use a database user scoped to one database with no admin. When an agent needs access, it drafts the exact permissions it needs and a human grants them.
+No production credentials, databases or APIs without explicit approval of the exact action. Investigation tooling reads from a restore, read-only, through a gate that redacts. Production logs are read through read-only access and that has paid for itself: an agent reading a log stream found a nightly job that had failed silently for six months. Risky tests in a shared environment use a database user scoped to one database with no admin. When an agent needs access, it drafts the exact permissions it needs and a human grants them.
 
 ### Multi-tenancy
 
@@ -341,7 +326,7 @@ Relational by default. An agent halts before adding a persisted JSON column and 
 
 ### Dependencies
 
-Scanners run twice: on the pull request, and on the image build at deploy. New CVEs land between the two.
+Scanners run on the pull request and again on the image build. New CVEs land between the two.
 
 For each High or Critical finding: if upstream has a fixed version, bump it. If not, add an ignore entry with a review-by date about six weeks out. Never add an ignore for a finding that has a fix. A bump needs unit tests of our code that uses the package, passing on the old pin and the new one. Never write a test that imports the package directly; if nothing of ours reaches a direct dependency, say it looks unused rather than opening a version-only pull request. Open the pull request from a branch we own, based on the scanned branch, never on a scanner's autofix branch.
 
@@ -349,18 +334,17 @@ When a fix must ship and a finding has no upstream fix, break glass: a ticket, a
 
 ### Fakes of third parties
 
-Where we integrate with a third-party system we run a local fake of it. The fake matches what the application already sends and expects. The application is never patched to suit the fake. If the fake does not work against the app, the fake is wrong. A bug is reproduced against the fake before anyone asks for staging, and the agent can tell you which bugs in a backlog the fake can reproduce and which it cannot.
+Where we integrate with a third-party system we run a local fake of it. The fake matches what the application already sends and expects. The application is never patched to suit the fake. If the fake does not work against the app, the fake is wrong. A bug is reproduced against the fake before anyone asks for a shared environment, and the agent can tell you which bugs in a backlog the fake can reproduce and which it cannot.
 
 A named seed dataset, a fictional firm with archetypal clients, meetings and templates, gives every local environment and every demo the same starting state.
 
 ## Git and pull requests
 
-What is enforced by branch rules, across repos:
+What is enforced by branch rules:
 
-- Integration and release branches require a pull request, resolved conversations and passing required checks.
-- Integration branches need no approval, so that ship, show, ask is possible: a trivial change ships; a change worth a second pair of eyes is posted as `SHOW:` and waits half an hour; a change that needs a decision is posted as `ASK:` and waits for one. Release branches and tenant integration branches need one human approval, and on the tenant branch that is a contractual commitment.
-- Merge commits only. Branches must be up to date before merging. Head branches are deleted after merge. Protected branches cannot be force-pushed or deleted. Only an organisation admin can bypass, as a break-glass fallback.
-- Signed commits are reported on and not yet enforced.
+- Protected branches require a pull request, resolved conversations and passing required checks. They cannot be force-pushed or deleted. Only an organisation admin can bypass, as a break-glass fallback.
+- Integration branches need no approval, so that ship, show, ask is possible: a trivial change ships; a change worth a second pair of eyes is posted as `SHOW:` and waits half an hour; a change that needs a decision is posted as `ASK:` and waits for one. Branches with a contractual review commitment need one human approval.
+- Merge commits only. Branches must be up to date before merging. Head branches are deleted after merge.
 
 What is expected of people and agents:
 
@@ -370,7 +354,6 @@ What is expected of people and agents:
 - Follow the repo's commit style. No AI attribution footers.
 - Agents do not commit, push, merge or open pull requests without being asked. Agents never merge a pull request, delete a tag, or rewrite shared history. Nobody pushes to `main` without permission.
 - A revert may bypass the normal gates when a human says so on the thread.
-- Mobile builds and releases run on CI, gated by a human, never from a laptop.
 - Never commit secrets or operational notes.
 
 ## How agents are steered
@@ -486,7 +469,7 @@ The bar is three or more tasks working, each on its own pull request, run alongs
 
 Things we have seen go wrong and now name.
 
-- **AI code fixing AI comments on a diff nobody understands.** Five-thousand-line release pull requests, flagged by the bots, patched by whoever was free. The author owns the fix because the author has the context.
+- **AI code fixing AI comments on a diff nobody understands.** A five-thousand-line pull request, flagged by the bots, patched by whoever was free. The author owns the fix because the author has the context.
 - **Declaring done while the hosted bots are still running.** The agent replies to the existing threads, ends its turn, and the new findings land three minutes later.
 - **The Bugbot spiral.** Each fix spawns a new finding on a small diff and the loop runs for days. Stop it, make the agent think, and resolve in one pass. If the diff is large, the fix is to split it.
 - **Hand-writing the spec.** Twenty minutes typing a requirements list before the first prompt, when the agent would have drafted the questions in one.
@@ -513,15 +496,12 @@ Things we have seen go wrong and now name.
 
 This document describes the practice we hold each other to. These are the places where we know we fall short of it, as of November 2026.
 
-- **End-to-end tests exist on one repo.** The frontend has a browser suite. The others do not, and a release is still tested by hand on staging. The leads' position is that human reading of code should become the exception once there is end-to-end cover; today it cannot be.
-- **Staging is shared and often blocked.** Merging to `main` deploys to staging. Two large pieces of work landing in the same week can leave one unreleasable until the other is verified, and we have reverted and re-merged to get round it. A release branch cut from a known-good commit, with work in progress behind flags, is the agreed fix and is being introduced.
-- **A release costs two engineers a day.** Daily releases are an aim, argued about honestly, and attempted in order to find out what stops them.
+- **End-to-end tests exist on one repo.** The frontend has a browser suite; the others do not yet. The leads' position is that human reading of code should become the exception once there is end-to-end cover; today it cannot be.
 - **Coverage is uneven.** Line coverage runs from the mid-thirties to the mid-seventies depending on the repo. Floors stop it falling; it is not yet a gate.
-- **Strict TDD is unevenly lived on the legacy codebase.** Halt-after-red is enforced in the newer codebase. On brownfield code engineers often work spec-first and add tests as they go. When the local environment is down, work has shipped on tests alone; the pull request says so when that happens.
+- **Strict TDD is unevenly lived on the older codebase.** Halt-after-red is enforced in the newer one. On brownfield code engineers often work spec-first and add tests as they go. When the local environment is down, work has shipped on tests alone; the pull request says so when that happens.
 - **Feature flags drifted into configuration.** Some are flags, some are config, and the triage step exists partly because the line is blurred.
 - **Not everyone uses the shared workspace and skills.** Adoption is pushed through review, and the security review in particular is where an engineer without the skill is asked why.
-- **Bot loops are expensive.** One codebase's Bugbot bill ran to thousands a month until re-run-on-rebase was turned off and the settings were tuned. Reconciling three reviewers' findings is unpaid time.
-- **Large pull requests still happen.** A 6,200-line merge pull request shipped in October. The engineer who inherited it wrote the handover note that says it should have been ten.
+- **Large pull requests still happen.** A six-thousand-line pull request shipped in October. The engineer who inherited it wrote the handover note that says it should have been ten.
 - **The north star is a codebase safe to vibe-code.** Tests, flags, fakes and gates good enough that an engineer could hand the agent a ticket and trust the stack to catch what is wrong. We are not there, and this document is the list of what it takes.
 
 ## Reading
