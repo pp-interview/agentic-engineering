@@ -31,7 +31,7 @@ The tooling we name is what we use now: Cursor, Claude Code, Codex, Bugbot, Code
 
 If you read nothing else, this is what we want from you.
 
-1. **Use the agent to work out what to ask, then ask.** Do not hand-write a spec. Have the agent interview you about the plan, one question at a time, and have it explore the code instead of asking you things the code can answer.
+1. **Draft a rough spec, then use the agent to refine the details.** Have it interview you about the plan, one question at a time, and have it explore the code instead of asking you things the code can answer. Bring the questions it raises to the product owner.
 2. **Size the work before you start it and say what you will ship.** Half a day is the target slice. Call out hidden scope in writing before the first prompt.
 3. **Run several pieces of work at once.** One agent, one branch, one pull request per task, each in its own worktree or clone. Fill the agent's runtime with the next task, not with watching it.
 4. **Test first.** A failing test, then the smallest code that passes it, one test at a time. Never a test that stubs the thing it claims to test. Never a test that pins the bug to go green.
@@ -39,7 +39,7 @@ If you read nothing else, this is what we want from you.
 6. **Run the review stack before you open the pull request,** and wait for the hosted bots after you push. Tools, then Bugbot, then a security review, then blast radius. Answer every finding: fixed, false positive with proof, pre-existing with a ticket, or declined with a reason.
 7. **Keep the agent out of production, customer data and shared git history.** It never merges, never force-pushes, never deletes a tag, never reads a production secret. You press those buttons.
 8. **Stop an agent that does something unfit.** Personal data in a payload, a bypassed contract, a delete to tidy up, a CORS or port change to make local work, scope creep. Your judgement is the control.
-9. **Small diffs that match the repo.** No drive-bys. A problem you notice gets a ticket, not a fix in this pull request.
+9. **Small diffs that match the repo.** A problem you notice along the way: fix it in this pull request if it is related, in a separate pull request if it is not, or raise a ticket if it is a large piece of work.
 10. **When the agent gets something wrong, fix the rule, not the chat.** A lesson the next agent must follow goes in a skill, a rule or `AGENTS.md`. Run the retro.
 
 ## Principles
@@ -349,7 +349,7 @@ What is enforced by branch rules:
 What is expected of people and agents:
 
 - Branch from the integration branch, one task per branch, named for the task.
-- Small diffs. Match the patterns already in the repo. Do not refactor quirks you were not asked to touch. No drive-bys: a pre-existing problem you notice gets a ticket, not a fix in this pull request.
+- Small diffs. Match the patterns already in the repo. Do not refactor quirks you were not asked to touch. A pre-existing problem you notice: fix it here if it is related to the change, in a separate pull request if it is not, or raise a ticket if it is a large piece of work.
 - Commit in the repo the code belongs to. Workspace docs and scripts commit in the workspace repo.
 - Follow the repo's commit style. No AI attribution footers.
 - Agents do not commit, push, merge or open pull requests without being asked. Agents never merge a pull request, delete a tag, or rewrite shared history. Nobody pushes to `main` without permission.
@@ -455,7 +455,7 @@ Evidence: smaller pull requests, better first-pass review, fewer regressions, sh
 
 Our technical round is a 45-minute live pairing session on a small real codebase, with more tasks than one agent can do in the time. Candidates use their own tools. We are not scoring which tool or mechanism they use. We are scoring:
 
-- **Clarification.** Do they use the agent to work out what to ask, then ask us, rather than hand-writing a specification or guessing.
+- **Clarification.** Do they sketch the spec, use the agent to find the gaps in it, then ask us, rather than guessing or writing the whole thing by hand.
 - **Plan.** Do they size each task and say which ones they will ship before they start. Does what landed match the plan.
 - **Throughput.** How many pieces of work are in flight. Is anything working in the browser at the end.
 - **Kept apart.** Is parallel work isolated. Do they switch branches under a running agent. Do they see the collisions coming on shared files, ports and the database.
@@ -472,7 +472,7 @@ Things we have seen go wrong and now name.
 - **AI code fixing AI comments on a diff nobody understands.** A five-thousand-line pull request, flagged by the bots, patched by whoever was free. The author owns the fix because the author has the context.
 - **Declaring done while the hosted bots are still running.** The agent replies to the existing threads, ends its turn, and the new findings land three minutes later.
 - **The Bugbot spiral.** Each fix spawns a new finding on a small diff and the loop runs for days. Stop it, make the agent think, and resolve in one pass. If the diff is large, the fix is to split it.
-- **Hand-writing the spec.** Twenty minutes typing a requirements list before the first prompt, when the agent would have drafted the questions in one.
+- **Writing the whole spec by hand.** Twenty minutes typing a complete requirements list before the first prompt, when a rough draft and the agent's questions would have got there in five.
 - **One context window for everything.** Wanting one context to hold it all is a preference for serial work. It caps throughput at one task.
 - **Accepting what you don't understand.** Taking a locking strategy from an agent you could not explain to a colleague. If you cannot explain it, you cannot review it.
 - **Accepting drift.** One duration agreed, another delivered, "we're aware of that". The agent's output is not the spec.
