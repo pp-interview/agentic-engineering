@@ -2,7 +2,7 @@
 
 How we build software with AI coding agents.
 
-PlannerPal turns an adviser's meeting into notes, documents and CRM updates, in a regulated industry, for real customers, with a small team. Agents write most of our code: since mid-September, six in ten commits across our repos name an AI co-author, and that is a floor. The bar is the same whoever wrote it.
+PlannerPal turns an adviser's meeting into notes, documents and CRM updates, in a regulated industry, for real customers, with a small team. Agents write most of our code. The bar is the same whoever wrote it.
 
 This document is for our engineers, for people thinking about joining, and for anyone who wants to see how a small team runs agents without lowering its standards. It describes what we do today, drawn from our repos' rules and skills, our pull request threads, our call transcripts and our Slack. Where a practice is aspirational, or where we fall short of it, we say so. There is a section for that at the end.
 
@@ -367,7 +367,7 @@ What is expected of people and agents:
 - Branch from the integration branch, one task per branch, named for the task.
 - Small diffs. Match the patterns already in the repo. Do not refactor quirks you were not asked to touch. No drive-bys: a pre-existing problem you notice gets a ticket, not a fix in this pull request.
 - Commit in the repo the code belongs to. Workspace docs and scripts commit in the workspace repo.
-- Follow the repo's commit style. Co-author trailers from the tool are fine and are how we measure usage. Marketing footers are not.
+- Follow the repo's commit style. No AI attribution footers.
 - Agents do not commit, push, merge or open pull requests without being asked. Agents never merge a pull request, delete a tag, or rewrite shared history. Nobody pushes to `main` without permission.
 - A revert may bypass the normal gates when a human says so on the thread.
 - Mobile builds and releases run on CI, gated by a human, never from a laptop.
@@ -444,16 +444,14 @@ A quality matrix per repo scores test coverage, review gates and whether the rep
 
 ## Autonomous agents
 
-We run one autonomous agent, Trev, an investigator built on the Cursor SDK. Tag a bug ticket with a label and Trev picks it up: it reads the ticket, the error tracker and the logs, reproduces what it can against a read-only restore, and reports. Engineers without production log access use it to get at the logs. It also runs over a whole backlog: 292 bug tickets ranked by file produced the heat map above.
+Some of our agents run without a human watching. The rules for those are stricter than for a pairing session.
 
-The rules it runs under are the ones we want for any agent working without a human watching.
-
-- **Least privilege.** It works in an isolated worktree, never a live checkout. Data access is a read-only restore through a redacting gate. Cross-repo search runs on read-only snapshots.
-- **Declared outcome.** Every report starts with one of `dead-end`, `data-evidence` or `smoking-gun`, and that tag decides where the report goes. No hedging prose.
-- **Evidence and a recommended fix, not a pull request.** It publishes a branch. It never force-pushes and never opens a pull request. We chose that on purpose: an automatic pull request would lull the engineer into merging a fix they do not understand. A human-run review must pass on the worktree before anything moves further.
+- **Least privilege.** An isolated worktree, never a live checkout. Any data access is read-only and goes through a gate that redacts.
+- **Declared outcome.** Every report opens with a one-word verdict on what it found, and that verdict decides where the report goes. No hedging prose.
+- **Evidence and a recommended fix, not a pull request.** It publishes a branch. It never force-pushes and never opens a pull request. An automatic pull request would lull the engineer into merging a fix they do not understand. A human-run review must pass before anything moves further.
 - **No side effects unless asked.** It does not post to chat or the tracker unless the engineer running it says so.
-- **A second vendor's model for review.** Its pull request review deliberately uses a different model family from the one that wrote the code.
-- **It is wrong sometimes.** On one high-priority ticket its root cause was wrong and the logs disproved it. Its reports are read as evidence, not verdicts.
+- **A second vendor's model for review.** The review uses a different model family from the one that wrote the code.
+- **It is wrong sometimes.** Its reports are read as evidence, not verdicts.
 
 Agents also do analysis that used to be nobody's job: writing the manual tester's test plan from the last two weeks of merged work, writing the handover note on a ticket by reading the author's commits, classifying which bugs the local fake can reproduce, drafting the exact permissions a new access request needs.
 
